@@ -70,6 +70,7 @@ class Property(pygame.sprite.Sprite):
         self.list_box_modules = ListBox(posi=(360, 230))
         self.config_bit = False
         self.time = True
+        self.move_inside = False # Garantiza que lo que se este moviendo quede dentro del area de trabajo
 
     def init_properties(self):
         self.container = Container((self.pos_workspace[0],
@@ -413,6 +414,8 @@ class Property(pygame.sprite.Sprite):
                                         for nodo in container.nodos:
                                             if nodo.name_element == self.elem_selected:
                                                 container.nodos.remove(nodo)
+                                        for caja in knn_ind.cols[knn_ind.num_rows - 1]:  # Remueve elementos que son reducidos del paralelo
+                                            container.real_items.remove(caja)
                                         knn_ind.cols[knn_ind.num_rows - 1] = pygame.sprite.Group()
                                         knn_ind.num_rows -= 1
                                         knn_ind.calc_lines()
@@ -448,6 +451,7 @@ class Property(pygame.sprite.Sprite):
                                         if len(knn_ind.cols[ind]) > 1:
                                             for caja in knn_ind.cols[ind]:
                                                 if caja.id == len(knn_ind.cols[ind]):
+                                                    container.real_items.remove(caja)
                                                     knn_ind.cols[ind].remove(caja)
                                                     for nodo in container.nodos:
                                                         if nodo.name_element == self.elem_selected:
@@ -462,33 +466,15 @@ class Property(pygame.sprite.Sprite):
                     if container.selected:
                         for stand_ini in container.stand:
                             if self.addline_rect.collidepoint(push_position):  # Adicionar paralelo
-                                if stand_ini.num_rows < 5:
+                                if stand_ini.num_elements < 5:
                                     if stand_ini.tag == self.elem_selected:
-                                        for nodo in container.nodos:
-                                            if nodo.name_element == self.elem_selected:
-                                                container.nodos.remove(nodo)
-                                        stand_ini.cajas.add(Caja((stand_ini.pos[0]+80,
-                                                                  stand_ini.pos[1]+stand_ini.node_dt*stand_ini.num_rows-1),
-                                                                 stand_ini.num_rows+1, name=stand_ini.tag + '_'))
-                                        stand_ini.num_rows += 1
-                                        stand_ini.calc_lines()
-                                        stand_ini.calc_nodes()
-                                        for nodo in stand_ini.nodos:
-                                            container.nodos.add(nodo)
+                                        stand_ini.num_elements += 1
+
                             if self.reduceline_rect.collidepoint(push_position):  # Eliminar elemento
-                                if stand_ini.num_rows > 2:
+                                if stand_ini.num_elements > 2:
                                     if stand_ini.tag == self.elem_selected:
-                                        for nodo in container.nodos:
-                                            if nodo.name_element == self.elem_selected:
-                                                container.nodos.remove(nodo)
-                                        for caja in stand_ini.cajas:
-                                            if caja.id == stand_ini.num_rows:
-                                                stand_ini.cajas.remove(caja)
-                                        stand_ini.num_rows -= 1
-                                        stand_ini.calc_lines()
-                                        stand_ini.calc_nodes()
-                                        for nodo in stand_ini.nodos:
-                                            container.nodos.add(nodo)
+                                        stand_ini.num_elements -= 1
+
             elif self.type_element == 4:
                 for container in self.elementos['containers']:
                     if container.selected:
@@ -517,6 +503,9 @@ class Property(pygame.sprite.Sprite):
             if container.selected:
                 for caja in container.cajas:
                     if caja.tag == self.element_moved:
+                        valid_workspace = pygame.Rect(self.pos_workspace[0], self.pos_workspace[1],
+                                                      self.SIZE_WORKSPACE[0] - 180, self.SIZE_WORKSPACE[1] - 80)
+                        self.move_inside_work(screen, position, caja.rect, valid_workspace)
                         for nodo in caja.nodos:
                             container.nodos.remove(nodo)
                         caja.rect.x = position[0]
@@ -525,12 +514,27 @@ class Property(pygame.sprite.Sprite):
                         caja.calc_nodes()
                 for paralelo in container.knn:
                     if paralelo.tag == self.element_moved:
+                        valid_workspace = pygame.Rect(self.pos_workspace[0], self.pos_workspace[1],
+                                                      self.SIZE_WORKSPACE[0] - 200, self.SIZE_WORKSPACE[1] - 180)
+                        self.move_inside_work(screen, position, paralelo.rect, valid_workspace)
                         for nodo in paralelo.nodos:
                             container.nodos.remove(nodo)
                         paralelo.rect.x = position[0]
-                        paralelo.rect.y = position[1]
+                        paralelo.rect.y = position[1]-40
                         paralelo.pos = position
                         paralelo.calc_nodes()
+                        paralelo.calc_lines()
+
+    def move_inside_work(self, screen, position, elemento, space):
+        """Funcion para definir la manera en q se ubica el elemento dependiendo de donde se encuentre"""
+        if space.collidepoint(position):
+            self.move_inside = True
+            print('in')
+            self.put_position = self.round_pos(position)
+        else:
+            self.move_inside = False
+            print('out')
+
 
     def repos_element(self):  # Reposicionar elemento
         for container in self.elementos['containers']:
@@ -556,18 +560,21 @@ class Property(pygame.sprite.Sprite):
                         container.cajas.remove(caja)
                         container.own_items.remove(caja.tag)
                         container.items.remove(caja)
+                        container.real_items.remove(caja)
                 for paralelo in container.knn:
                     if paralelo.rect.collidepoint(position):
                         container.cont_knn -= 1
                         for col in paralelo.cols:
                             for caja in col:
                                 container.list_box.del_data(caja)
+                                container.real_items.remove(caja)
                         container.list_box.del_data(paralelo)
                         for nodo in paralelo.nodos:
                             for key in container.keys:  # Remover elemento de lista de conexiones nodales
                                 if nodo in container.nodos_sistema[key]:
                                     container.nodos_sistema[key].remove(nodo)
                             container.nodos.remove(nodo)
+                        container.real_items.remove(paralelo)
                         container.knn.remove(paralelo)
                         container.own_items.remove(paralelo.tag)
                         container.items.remove(paralelo)
@@ -575,11 +582,14 @@ class Property(pygame.sprite.Sprite):
                     if stand.rect.collidepoint(position):
                         container.cont_stand -= 1
                         container.list_box.del_data(stand)
+                        for caja in stand.cajas:
+                            container.real_items.remove(caja)
                         for nodo in stand.nodos:
                             for key in container.keys:  # Remover elemento de lista de conexiones nodales
                                 if nodo in container.nodos_sistema[key]:
                                     container.nodos_sistema[key].remove(nodo)
                             container.nodos.remove(nodo)
+                        container.real_items.remove(stand)
                         container.stand.remove(stand)
                         container.own_items.remove(stand.tag)
                         container.items.remove(stand)
@@ -587,11 +597,15 @@ class Property(pygame.sprite.Sprite):
                     if kdn.rect.collidepoint(position):
                         container.cont_kdn -= 1
                         container.list_box.del_data(kdn)
+                        for caja in kdn.cajas:
+                            container.real_items.remove(caja)
                         for nodo in kdn.nodos:
                             for key in container.keys:  # Remover elemento de lista de conexiones nodales
                                 if nodo in container.nodos_sistema[key]:
                                     container.nodos_sistema[key].remove(nodo)
                             container.nodos.remove(nodo)
+                        container.real_items.remove(kdn)
+                        container.real_items.remove(kdn)
                         container.kdn.remove(kdn)
                         container.own_items.remove(kdn.tag)
                         container.items.remove(kdn)
@@ -781,6 +795,7 @@ class Property(pygame.sprite.Sprite):
                                 container.list_box.add_data(caja)
                                 container.real_items.add(caja)
                         container.list_box.add_data(knn)
+                        container.real_items.add(knn)
                         for nodo in knn.nodos:
                             container.nodos.add(nodo)
                         container.knn.add(knn)
@@ -795,24 +810,60 @@ class Property(pygame.sprite.Sprite):
                     container.cont_stand += 1
                     container.all_stand += 1
                     stand = Stand(self.put_position, container.all_stand)
-                    for nodo in stand.nodos:
-                        container.nodos.add(nodo)
-                    container.list_box.add_data(stand)
-                    container.stand.add(stand)
-                    container.own_items.append(stand.tag)
-                    container.items.add(stand)
+                    colision = False
+                    hit_stand = pygame.sprite.spritecollide(stand, container.real_items,
+                                                False)  # Verifica si no colisiona sobre otro elemento
+                    if hit_stand:
+                        colision = True
+                    for caja in stand.cajas:
+                        hit = pygame.sprite.spritecollide(caja, container.real_items,
+                                                          False)  # Verifica si no colisiona sobre otro elemento
+                        if hit:
+                            colision = True
+                            break
+                    if not colision:
+                        for nodo in stand.nodos:
+                            container.nodos.add(nodo)
+                        for caja in stand.cajas:
+                            container.real_items.add(caja)
+                        container.real_items.add(stand)
+                        container.list_box.add_data(stand)
+                        container.stand.add(stand)
+                        container.own_items.append(stand.tag)
+                        container.items.add(stand)
+                    else:
+                        container.cont_stand -= 1
+                        container.all_stand -= 1
         elif self.hold_kdn:
             for container in self.elementos['containers']:
                 if container.selected:
                     container.cont_kdn += 1
                     container.all_kdn += 1
                     kdn = Kdn(self.put_position, container.all_kdn)
-                    for nodo in kdn.nodos:
-                        container.nodos.add(nodo)
-                    container.list_box.add_data(kdn)
-                    container.kdn.add(kdn)
-                    container.own_items.append(kdn.tag)
-                    container.items.add(kdn)
+                    hit_kdn = pygame.sprite.spritecollide(kdn, container.real_items,
+                                                            False)  # Verifica si no colisiona sobre otro elemento
+                    colision = False
+                    if hit_kdn:
+                        colision = True
+                    for caja in kdn.cajas:
+                        hit = pygame.sprite.spritecollide(caja, container.real_items,
+                                                          False)  # Verifica si no colisiona sobre otro elemento
+                        if hit:
+                            colision = True
+                            break
+                    if not colision:
+                        for nodo in kdn.nodos:
+                            container.nodos.add(nodo)
+                        for caja in kdn.cajas:
+                            container.real_items.add(caja)
+                        container.real_items.add(kdn)
+                        container.list_box.add_data(kdn)
+                        container.kdn.add(kdn)
+                        container.own_items.append(kdn.tag)
+                        container.items.add(kdn)
+                    else:
+                        container.cont_kdn -= 1
+                        container.all_kdn -= 1
         elif self.hold_module:
             for container in self.elementos['containers']:
                 if container.selected:
@@ -935,7 +986,6 @@ class Property(pygame.sprite.Sprite):
                             if len(container.list_box.list_items) > 0:
                                 screen.blit(self.plot_surface, self.pos_plot)
                                 t = container.time
-                                print('time', t)
                                 container.list_box.draw(screen, t)
                                 container.list_box.consult_position(push_position)
                                 screen.blit(self.canvas_space(self.fig), (310, 240))
@@ -984,7 +1034,7 @@ class Property(pygame.sprite.Sprite):
 
     def config_panel(self, container, screen, over_mouse, pushed):
         if self.time:
-            self.time_field.buffer = [str(container.time)]
+            self.time_field.buffer = [char for char in str(container.time)]
         self.time = False
         screen.blit(self.font.render('Parámetros del contenedor "'+container.name+'"', True, (0, 0, 0)), self.pos_config)
         screen.blit(self.font.render('Tiempo:', True, (0, 0, 0)), (self.pos_config[0], self.pos_config[1]+39))
@@ -995,8 +1045,9 @@ class Property(pygame.sprite.Sprite):
         if self.ok_rect3.collidepoint(over_mouse):  # Mouse over button
             screen.blit(self.ok_s, self.ok_rect3)
         if self.ok_rect3.collidepoint(pushed):  # Boton presionado
-            print("".join(self.time_field.buffer))
+            #print("".join(self.time_field.buffer))
             container.time = "".join(self.time_field.buffer)
+            container.time = int(container.time)
             self.new_time = True
 
 
@@ -1256,13 +1307,13 @@ class Property(pygame.sprite.Sprite):
             screen.blit(self.close, self.close_name_rect)
             screen.blit(self.font.render('Estructura ' + self.elem_selected, True, (0, 0, 0)),
                         (self.pos_proper[0] + 10, self.pos_proper[1] + 10))
-            num_rows = 1
+            num_elements = 1
             for container in self.elementos['containers']:
                 if container.selected:
                     for stand_ind in container.stand:
                         if stand_ind.tag == self.elem_selected:
-                            num_rows = stand_ind.num_rows
-            screen.blit(self.font.render('Nro. elementos:  ' + str(num_rows), True, (0, 0, 0)),
+                            num_elements = stand_ind.num_elements
+            screen.blit(self.font.render('Nro. elementos:  ' + str(num_elements), True, (0, 0, 0)),
                         (self.pos_proper[0] + 10, self.pos_proper[1] + 40))
             if self.addline_rect.collidepoint(position):
                 screen.blit(self.addline_s, self.addline_rect)

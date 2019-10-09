@@ -10,6 +10,7 @@ WHITE = (255, 255, 255)
 
 t = sy.symbols('t')
 
+
 class Init(pygame.sprite.Sprite):
     def __init__(self, position):
         pygame.sprite.Sprite.__init__(self)
@@ -99,7 +100,7 @@ class Caja(pygame.sprite.Sprite):
         self.rect.x = pos[0]    
         self.rect.y = pos[1]
         self.tag = name+'Caja_'+str(cont)
-        self.sym = sy.symbols(name + 'Caja_' + str(cont))
+        self.sym = sy.symbols('Caja_' + str(cont))
         self.id = cont
         self.name = name
         self.font = pygame.font.SysFont('Arial', 14)
@@ -205,19 +206,27 @@ class Knn(pygame.sprite.Sprite):
         for ind, value in enumerate(range(self.num_rows)):
             self.cols[value].add(Caja((pos[0]+20, pos[1]+value*self.dt), 1, name=self.tag+"_"+str(ind)))
         self.value = ''
+        # self.value_sy = sy.exp(-(t * float(self.alpha)) ** float(self.betha))
+        # self.value = 'sy.exp(-(t*' + self.alpha + ')**' + self.betha + ')'
         for ind, value in enumerate(range(self.num_rows)):
             self.line = ''
+            self.sym_line = None
             for element in self.cols[ind]:
                 if not self.line:
                     self.line = element.value
+                    self.sym_line = element.value_sy
                 else:
                     self.line += '*'+element.value
+                    self.sym_line *= element.value_sy
             if not self.value:
                 self.value += '(1-('+self.line+'))'
+                self.value_sy = 1-self.sym_line
             else:
                 self.value += '*(1-(' + self.line + '))'
+                self.value_sy *= 1-self.sym_line
             if ind == self.num_rows-1:
                 self.value = '(1-'+self.value+')'
+                self.value_sy = 1-self.value_sy
         self.calc_num_cols()  # Indica el maximo de paralelos existente
         self.calc_lines()
         self.calc_nodes()  # Determinar posiciones de los nodos
@@ -243,19 +252,26 @@ class Knn(pygame.sprite.Sprite):
     def calc_value(self):
         """Calcula la expresion regular para el valor del paralelo actual"""
         self.value = ''
+        self.value_sy = None
         for ind, value in enumerate(range(self.num_rows)):
             self.line = ''
+            self.sym_line = None
             for element in self.cols[ind]:
                 if not self.line:
                     self.line = element.value
+                    self.sym_line = element.value_sy
                 else:
                     self.line += '*'+element.value
+                    self.sym_line *= element.value_sy
             if not self.value:
                 self.value += '(1-('+self.line+'))'
+                self.value_sy = 1-self.sym_line
             else:
                 self.value += '*(1-(' + self.line + '))'
+                self.value_sy *= 1-self.sym_line
             if ind == self.num_rows-1:
                 self.value = '(1-'+self.value+')'
+                self.value_sy = 1-self.value_sy
 
     def calc_lines(self):
         """Calcula las posiciones para las lineas tanto horizontales como verticales"""
@@ -324,19 +340,26 @@ class Stand(pygame.sprite.Sprite):
         self.sym = sy.symbols(self.tag)
         self.pos = pos
         self.num_rows = num_rows
+        self.num_elements = num_rows
         self.cajas = pygame.sprite.Group()
         self.node_dt = 100
         self.mod = 'exp'
         self.alpha = '1.21e-4'
         self.betha = '1'
         self.own_value = 'np.exp(-(t*' + self.alpha + ')**' + self.betha + ')*'
+        self.own_syvalye = sy.exp(-(t*float(self.alpha))**float(self.betha))
         self.line = ''
-        for n in range(num_rows):
+        self.syline = None
+        for n in range(self.num_elements):
             if not self.line:
                 self.line += '(('+self.alpha+'*t)**'+str(n)+'/'+str(factorial(n))+')'
+                print(float(self.alpha)*t)
+                self.syline = ((float(self.alpha)*t)**n)/factorial(n)
             else:
                 self.line += '+((' + self.alpha + '*t)**' + str(n) + '/' + str(factorial(n)) + ')'
+                self.syline *= ((float(self.alpha) * t) ** n) / factorial(n)
         self.value = self.own_value+self.line
+        self.value_sy = self.own_syvalye*self.syline
         for ind in range(num_rows):
             self.cajas.add(Caja((pos[0]+80, pos[1]+self.node_dt*ind), ind+1, name=self.tag+'_'))
         self.nodos = pygame.sprite.Group()
@@ -346,13 +369,18 @@ class Stand(pygame.sprite.Sprite):
 
     def calc_value(self):
         self.own_value = 'np.exp(-(t*' + self.alpha + ')**' + self.betha + ')*'
+        self.own_syvalye = sy.exp(-(t * float(self.alpha)) ** float(self.betha))
         self.line = ''
-        for n in range(self.num_rows):
+        self.syline = None
+        for n in range(self.num_elements):
             if not self.line:
                 self.line += '((' + self.alpha + '*t)**' + str(n) + '/' + str(factorial(n)) + ')'
+                self.syline = ((float(self.alpha)* t) ** n) / factorial(n)
             else:
                 self.line += '+((' + self.alpha + '*t)**' + str(n) + '/' + str(factorial(n)) + ')'
+                self.syline *= ((float(self.alpha) * t) ** n) / factorial(n)
         self.value = self.own_value + '('+self.line+')'
+        self.value_sy = self.own_syvalye * self.syline
 
     def calc_nodes(self):
         height_nodes = (self.pos[1]+self.node_dt*(self.num_rows-1))-(20*(self.num_rows-1))
@@ -379,7 +407,7 @@ class Stand(pygame.sprite.Sprite):
             pygame.draw.aaline(screen, BLACK, ini, fin)
         for nodo in self.nodos:
             nodo.draw(screen)
-        self.calc_lines()
+        #self.calc_lines()
         #self.calc_nodes()
 
 
@@ -395,7 +423,7 @@ class Kdn(pygame.sprite.Sprite):
         self.rect.y = self.pos[1] - 20
         self.cont = cont
         self.tag = 'KDN_' + str(cont)
-
+        self.sym = sy.symbols(self.tag)
         self.num_rows = num_rows
         self.num_active = num_active
         self.node_dt = 100
@@ -403,7 +431,8 @@ class Kdn(pygame.sprite.Sprite):
         self.alpha = '1e-4'
         self.betha = '1'
         self.mod = 'exp'
-        self.own_value = 'np.exp(-(t*' + self.alpha + ')**' + self.betha + ')'
+        self.own_value = 'np.exp(-(t*'+self.alpha+')**'+self.betha+')'
+        self.own_syvalye = sy.exp(-(t * float(self.alpha)) ** float(self.betha))
         for ind in range(2):
             self.cajas.add(Caja((pos[0]+60, pos[1]+self.node_dt*ind), ind+1, name=self.tag+'_'))
         self.left = []
@@ -420,18 +449,23 @@ class Kdn(pygame.sprite.Sprite):
 
         end_line = self.num_rows+1
         self.own_value = 'np.exp(-(t*' + self.alpha + ')**' + self.betha + ')'
+        self.own_syvalye = sy.exp(-(t * float(self.alpha)) ** float(self.betha))
         self.value = ''
+        self.value_sy = None
         for val in range(self.num_active, end_line):
             if not self.value:
                 self.value += \
                     str(self.combination(self.num_rows, val))+'*'+self.own_value+'**'+str(val)+'*(1-'+self.own_value+')**('+str(self.num_rows)+'-'+str(val)+')'
+                self.value_sy = self.combination(self.num_rows, val)*self.own_syvalye**val*(1-self.own_syvalye)**(self.num_rows-val)
             else:
                 self.value += \
                     '+'+str(self.combination(self.num_rows, val)) + '*' + self.own_value + '**' + str(val)+'*(1-'+self.own_value+')**('+str(self.num_rows)+'-'+str(val)+')'
+                self.value_sy += self.combination(self.num_rows, val) * self.own_syvalye ** val * (
+                            1 - self.own_syvalye) ** (self.num_rows - val)
 
     @staticmethod
     def combination(m, n):
-        """Calcular combinaciones posibles con  elementos tomando n a la vez"""
+        """Calcular combinaciones posibles con elementos tomando n a la vez"""
         return factorial(m)//(factorial(n)*factorial(m-n))
 
     def calc_nodes(self):

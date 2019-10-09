@@ -177,11 +177,8 @@ class ListBox:
         self.scroll.draw_bar(screen, len(self.list_items), pos_der=self.size[0], pos_abajo=self.size[1])
 
     def make_plot(self, elemento, time):
-        #dist = dweibull(float(elemento.betha), 0, float(elemento.alpha))
         plt.style.use('seaborn')  # pretty matplotlib plots
         plt.cla()
-        #plt.plot(self.time, dist.pdf(self.time), c='blue',
-                 #label=r'$\beta=%.3f,\ \alpha=%.3f$' % (float(elemento.betha), float(elemento.alpha)))
         self.time = np.linspace(0, time, 500)
         t = self.time
         if elemento.tipo != 'paralelo' and elemento.tipo != 'modulo':

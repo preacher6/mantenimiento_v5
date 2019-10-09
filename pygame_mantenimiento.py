@@ -53,30 +53,32 @@ class PGManten:
                             self.property_class.name_element.active = True  # Activar casilla de nombre propiedades
                             self.property_class.element_property(position_mouse, 1)  # Activar propiedad elemento
                             if self.property_class.elem_selected:
-                                self.property_class.name_element.buffer = [char for char in self.property_class.elem_selected]
+                                self.property_class.name_element.buffer = \
+                                    [char for char in self.property_class.elem_selected]
                             # Aca se le pone al buffer el texto del elemento seleccionado
-                            print([self.property_class.elem_selected])
                             for container in self.property_class.elementos['containers']:  #Acciones de ingreso de texto
                                 if container.selected:
                                     for caja in container.cajas:
                                         if caja.tag == self.property_class.elem_selected:
                                             self.property_class.box_field1.buffer = [char for char in str(caja.alpha)]  # se le pone a los buffers los valores de los elementos seleccionados
-                                            self.property_class.box_field2.buffer = [str(caja.betha)]
+                                            self.property_class.box_field2.buffer = [char for char in str(caja.betha)]
                                     for knn_ind in container.knn:
                                         for col in knn_ind.cols:
                                             for caja in col:
                                                 if caja.tag == self.property_class.elem_selected:
-                                                    self.property_class.box_field1.buffer = [str(caja.alpha)]
-                                                    self.property_class.box_field2.buffer = [str(caja.betha)]
+                                                    self.property_class.box_field1.buffer = \
+                                                        [char for char in str(caja.alpha)]
+                                                    self.property_class.box_field2.buffer = \
+                                                        [char for char in str(caja.betha)]
                                     for stand_ind in container.stand:
                                             for caja in stand_ind.cajas:
                                                 if caja.tag == self.property_class.elem_selected:
-                                                    self.property_class.box_field1.buffer = [str(caja.alpha)]
-                                                    self.property_class.box_field2.buffer = [str(caja.betha)]
+                                                    self.property_class.box_field1.buffer = [char for char in str(caja.alpha)]
+                                                    self.property_class.box_field2.buffer = [char for char in str(caja.betha)]
                                     for kdn in container.kdn:
                                         if kdn.tag == self.property_class.elem_selected:
-                                            self.property_class.box_field1.buffer = [str(kdn.alpha)]
-                                            self.property_class.box_field2.buffer = [str(kdn.betha)]
+                                            self.property_class.box_field1.buffer = [char for char in str(kdn.alpha)]
+                                            self.property_class.box_field2.buffer = [char for char in str(kdn.betha)]
                         if self.property_class.container.recta_new.collidepoint(position_mouse) \
                                 and self.property_class.cont < 7:  # Agregar pestañas si son menos de 7
                             self.property_class.add_container()
@@ -119,7 +121,7 @@ class PGManten:
                             self.property_class.hold_line = True
                         if self.property_class.drawing:  # Poner elemento
                             self.property_class.put_element()
-                        if self.property_class.moving:  # Reponer elemento que se esta moviendo
+                        if self.property_class.moving and self.property_class.move_inside:  # Redesplazar elemento
                             self.property_class.repos_element()
                         if self.property_class.check.recta.collidepoint(position_mouse):  # Para rotar cajitas
                             for container in self.property_class.elementos['containers']:

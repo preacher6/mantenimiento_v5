@@ -428,6 +428,7 @@ class Container(pygame.sprite.Sprite):
         else:
             self.correct = True
             self.plot_all = matriz_inc[2, -4]
+            #print('eq: ', self.plot_all)
             #print('El sistema es reducible')
             t = self.time_eval
             #print('La confiabilidad del sistema es: ', eval(matriz_inc[2, -3])*100)
