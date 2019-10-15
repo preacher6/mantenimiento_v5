@@ -23,6 +23,7 @@ SLATEGRAY = (112, 128, 144)
 ACCEPTED = string.ascii_letters + '_-.' + string.digits
 ACCEPTED_NUM = 'e-'+ string.digits
 
+
 class TextBox(object):
     def __init__(self, rect, acepted=ACCEPTED, **kwargs):
         self.rect = pygame.Rect(rect)
@@ -107,7 +108,7 @@ class TextBox(object):
 
 
 class ListBox:
-    def __init__(self, size=(140, 210), posi=(120, 240)):
+    def __init__(self, size=(140, 210), posi=(120, 240), num_rectas=7):
         self.size = size
         self.container_clases = pygame.Surface(size)  # listmenu de clases
         self.container_clases.fill(WHITE)
@@ -119,12 +120,12 @@ class ListBox:
         self.dt = 30  # Altura de cada recta
         self.down = 0  # Indicar cuantos desplazamientos ha dado el scroll de clases
         self.rects = []
-        self.num_rects = 7  # Número de rectas dentro del listbox
+        self.num_rects = num_rectas  # Número de rectas dentro del listbox
         self.font = pygame.font.SysFont('Arial', 14)
         self.time = np.linspace(0, 8760, 1000)
         self.make_rects()
         self.types = {'exp': 'Distribución Exponencial', 'ray': 'Distribución Rayleigh', 'wei': 'Distribución Weibull'}
-        self.scroll = ScrollBar(self.posi_container, heigth=size[1], rects=self.num_rects)
+        self.scroll = ScrollBar(self.posi_container, heigth=size[1], rects=self.num_rects, size=self.size)
         self.panel_back = pygame.Surface((size[0]+40, size[1]+60))
         self.panel_back.fill(GRAY_2)
         self.panel_pos = (posi[0]-10, posi[1]-20)
@@ -150,20 +151,22 @@ class ListBox:
                     self.conten_actual = posible_indice
 
     def draw(self, screen, time):
+        #print(self.scroll.actual_pos)
         screen.blit(self.container_clases, self.posi_container)
         self.selected_class = pygame.Rect(self.posi_container[0] + 2,
                                           (self.posi_container[1] + (30 * (self.conten_actual - 1))) + 1, 136, 28)
         pygame.draw.rect(screen, BLUE, self.selected_class, 0)
         for index, element in enumerate(self.list_items):
-            screen.blit(self.font.render(element.tag, True,
-                                                  BLACK),
-                                 (self.posi_container[0] + 5, self.posi_container[1] + 5 + (index * self.dt)))
-        caja = self.list_items[self.conten_actual-1]
+            if self.scroll.actual_pos+self.num_rects-1 >= index >= self.scroll.actual_pos:
+                screen.blit(self.font.render(element.tag, True, BLACK),
+                            (self.posi_container[0] + 5, self.posi_container[1] + 5 + ((index-self.scroll.actual_pos) * self.dt)))
+        caja = self.list_items[self.conten_actual-1+self.scroll.actual_pos]
         self.make_plot(caja, time)
         self.scroll.draw_bar(screen, len(self.list_items), pos_der=self.size[0], pos_abajo=self.size[1])
 
     def draw_mod(self, screen):
         """Dibujo de listbox para modulos"""
+        print(self.scroll.actual_pos)
         screen.blit(self.panel_back, self.panel_pos)
         screen.blit(self.container_clases, self.posi_container)
         self.accept.draw_button(screen)
@@ -171,9 +174,8 @@ class ListBox:
                                           (self.posi_container[1] + (30 * (self.conten_actual - 1))) + 1, 136, 28)
         pygame.draw.rect(screen, BLUE, self.selected_class, 0)
         for index, element in enumerate(self.list_items):
-            screen.blit(self.font.render(element.name, True,
-                                                  BLACK),
-                                 (self.posi_container[0] + 5, self.posi_container[1] + 5 + (index * self.dt)))
+            screen.blit(self.font.render(element.name, True, BLACK),
+                        (self.posi_container[0] + 5, self.posi_container[1] + 5 + ((index-self.scroll.actual_pos) * self.dt)))
         self.scroll.draw_bar(screen, len(self.list_items), pos_der=self.size[0], pos_abajo=self.size[1])
 
     def make_plot(self, elemento, time):
@@ -196,42 +198,63 @@ class ListBox:
 
 class ScrollBar:
     """Clase que permite dibujar scrollbar"""
-    def __init__(self, pos, width=25, heigth=40, rects=1):
+    def __init__(self, pos, width=25, heigth=40, rects=1, size=(10, 10)):
         self.pos = pos
         self.width = width  # Ancho de la barra
         self.heigth = heigth-width*2
         self.rects = rects
+        self.size = size
         self.up = pygame.image.load(os.path.join("icons", "up.png"))
         self.down = pygame.image.load(os.path.join("icons", "down.png"))
         self.up_surface = pygame.Surface((width, width))
         self.up_surface.fill(WHITE2)
         self.down_surface = pygame.Surface((width, width))
         self.down_surface.fill(WHITE2)
+        self.down_rect = self.down_surface.get_rect()
+        self.down_rect.x = self.pos[0] + self.size[0]
+        self.down_rect.y = self.pos[1]+(self.size[1]-self.width)
+        self.up_rect = self.up_surface.get_rect()
+        self.up_rect.x = self.pos[0] + self.size[0]
+        self.up_rect.y = self.pos[1]
         self.fondo_barra = pygame.Surface((width, heigth))
         self.fondo_barra.fill(GRAY_2)
         self.fondo_rect = self.fondo_barra.get_rect()
         self.dt = 10  # Indica el desplazamiento de la barra
+        self.porc_desp = 0  # Indica la distancia que se desplaza, bien sea arriba o abajo
         self.actual_pos = 0  # Posición actual
+        self.porc_total = 0  # Indica la totalidad de los posible a desplazarse
+        self.num_rows = 1
 
     def draw_bar(self, screen, num_rows, pos_abajo=0, pos_arriba=0, pos_der=0, pos_izq=0):
-        if num_rows>self.rects:  # Indica si existen mas de los elementos posibles a visualizar en el contenedor
+        if num_rows > self.rects:  # Indica si existen mas de los elementos posibles a visualizar en el contenedor
             self.barra = pygame.Surface(((self.width - 4), self.heigth-(num_rows-self.rects)*self.dt))
         else:
-            self.barra = pygame.Surface(((self.width - 4), self.heigth))
+            self.barra = pygame.Surface(((self.width-4), self.heigth))
+        self.num_rows = num_rows
         self.barra_rect = self.barra.get_rect()
-        self.barra.fill(RED)
+        self.barra.fill(LIGHTGRAY)
         self.down_surface.blit(self.down, (3, 3))
         self.up_surface.blit(self.up, (3, 3))
         self.barra_rect.center = (self.pos[0] + (self.width / 2) + pos_der, 0)
-        self.barra_rect.y = self.pos[1]+self.width
-        self.fondo_rect.center = (self.pos[0] + (self.width / 2) + pos_der, self.pos[1] + (self.heigth / 2))
+        self.barra_rect.y = self.pos[1]+self.width+self.porc_desp
+        self.fondo_rect.center = (self.pos[0] + (self.width / 2) + pos_der, self.pos[1] + (self.heigth / 2)+self.width)
         screen.blit(self.fondo_barra, self.fondo_rect)
         screen.blit(self.barra, self.barra_rect)
         screen.blit(self.down_surface, (self.pos[0] + pos_der, self.pos[1]+(pos_abajo-self.width)))
         screen.blit(self.up_surface, (self.pos[0] + pos_der, self.pos[1]))
 
-    def action_bar(self):
-        pass
+    def action_bar(self, pushed):
+        if self.num_rows > self.rects:
+            self.porc_total = self.heigth-(self.heigth-(self.num_rows-self.rects)*self.dt)
+            print('total', self.actual_pos)
+            self.pasos_porc = self.porc_total/(self.num_rows-self.rects)
+            print('pasos', self.num_rows)
+            if self.down_rect.collidepoint(pushed)and (self.actual_pos+self.rects)<self.num_rows:
+                self.actual_pos += 1
+                self.porc_desp = self.pasos_porc*self.actual_pos
+            if self.up_rect.collidepoint(pushed) and self.actual_pos>0:
+                self.actual_pos -= 1
+                self.porc_desp = self.pasos_porc*self.actual_pos
 
 
 class RadioButton:
@@ -265,6 +288,7 @@ class RadioButton:
             self.own_surface.fill(self.color)
             self.own_surface.blit(self.no_pushed, (0, 0))
         screen.blit(self.own_surface, self.position)
+
 
 class CheckButton:
     def __init__(self, name, texto, position=(0, 0), size=(26, 26), color=GRAY, active=False):
@@ -300,7 +324,7 @@ class CheckButton:
 
 
 class TextButton:
-    def __init__(self, text, name, position=(0, 0), size=(90, 30), text_position=(5, 5)):
+    def __init__(self, text, name, position=[0, 0], size=(90, 30), text_position=(5, 5)):
         self.text = text
         self.name = name
         self.position = position
@@ -309,12 +333,13 @@ class TextButton:
         self.own_surface = pygame.Surface(self.size)
         self.own_surface.fill(SEMIWHITE)
         self.recta = pygame.Rect(self.position[0], self.position[1], self.size[0], self.size[1])
+        self.recta_push = pygame.Rect(self.position[0], self.position[1], self.size[0], self.size[1])
         self.font = pygame.font.SysFont('Arial', 13)
-        self.own_surface.blit(self.font.render(self.text, True,
-                              BLACK), self.text_position)
+        self.own_surface.blit(self.font.render(self.text, True, BLACK), self.text_position)
         self.over = False
 
     def draw_button(self, screen):
+        self.recta = pygame.Rect(self.position[0], self.position[1], self.size[0], self.size[1])
         if self.over:
             self.own_surface.fill(SLATEGRAY)
             self.own_surface.blit(self.font.render(self.text, True,
@@ -327,3 +352,36 @@ class TextButton:
             self.font.set_underline(False)
         screen.blit(self.own_surface, self.position)
         pygame.draw.rect(screen, BLACK, self.recta, 1)
+
+
+class MessageBox:
+    def __init__(self, text='', type='msg', size=[140, 120], position=(0, 0), text_position=(0, 0),
+                 button_position=[20, 90]):
+        self.text = text
+        self.type = type
+        self.size = size
+        self.position = position
+        self.text_position = text_position
+        self.own_surface = pygame.Surface(self.size)
+        self.own_surface.fill(GRAY)
+        self.font = pygame.font.SysFont('Arial', 13)
+        self.accept = TextButton('Aceptar', 'okay', position=button_position,
+                         size=(50, 30))
+
+    def draw(self, screen):
+        textox = self.font.render(self.text, True, BLACK)
+        textox_rect = textox.get_rect()
+        ancho = textox_rect.width+30
+        self.size[0] = ancho
+        texto_pos = (ancho/2 - textox_rect.width/3, self.size[1])
+        self.own_surface = pygame.Surface(self.size)
+        self.own_surface.fill(GRAY)
+        self.own_surface.blit(self.font.render(self.text, True, BLACK), self.text_position)
+        self.accept.position = (self.size[0]/2-self.accept.size[0]/2, self.size[1]-50)
+        #self.accept.recta_push.center = (self.accept.recta_push.x, self.accept.recta_push.y)
+        #self.accept.recta.center = (self.size[0] / 2 + self.accept.size[0], self.size[1])
+        self.accept.draw_button(self.own_surface)
+        #self.own_surface.blit(self.font.render(self.text, True, BLACK), self.text_position)
+        screen.blit(self.own_surface, self.position)
+        print((self.size[0]/2+self.accept.size[0], self.size[1]))
+

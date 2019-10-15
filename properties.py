@@ -71,6 +71,10 @@ class Property(pygame.sprite.Sprite):
         self.config_bit = False
         self.time = True
         self.move_inside = False # Garantiza que lo que se este moviendo quede dentro del area de trabajo
+        self.line_element = None  # Conexion a eliminar
+        self.line_delete = False  # Disponible a eliminar conexion
+        self.mensaje = MessageBox(position=(400, 240), text_position=(15, 30), button_position=[445, 320])  # Objeto para desplegar mensajes
+        self.show_msg = False
 
     def init_properties(self):
         self.container = Container((self.pos_workspace[0],
@@ -143,14 +147,26 @@ class Property(pygame.sprite.Sprite):
         if len(self.elementos['containers']) > 1:
             for container in self.elementos['containers']:
                 if container.recta_close.collidepoint(position):
+                    contador = container.cont
                     self.elementos['containers'].remove(container)
                     self.cont -= 1
+                    not_in = False  # Permite seleccionar la ultima pestaña
                     for contain in self.elementos['containers']:  # En caso de eliminarse una se renombran las demas
-                        if contain.cont > container.cont:
+                        print('contador', contador)
+                        print(contain.cont)
+                        if contain.cont > contador:
+                            print('in')
                             contain.cont -= 1
                             if container.selected:
+                                not_in = True
                                 contain.selected = True
                                 container.selected = False
+                    if not not_in:
+                        for contain in self.elementos['containers']:  # En caso de eliminarse una se renombran las demas
+                            if contain.cont == len(self.elementos['containers']):
+                                contain.selected = True
+                            else:
+                                contain.selected = False
 
         if len(self.elementos['containers']) == 1:
             for container in self.elementos['containers']:
@@ -188,7 +204,8 @@ class Property(pygame.sprite.Sprite):
             self.actions = [0] * 9
             self.actions[0] = 1
         if self.disconnect_rect.collidepoint(position):  # Desconectar
-            pass
+            self.actions = [0] * 9
+            self.actions[1] = 1
         if self.move_rect.collidepoint(position):  # Mover
             self.actions = [0]*9
             self.actions[2] = 1
@@ -203,14 +220,17 @@ class Property(pygame.sprite.Sprite):
                     if container.all_connected:
                         self.actions[4] = 1
                     else:
-                        print('no')
+                        self.show_msg = True
+                        self.mensaje.text = 'Hay elementos desconectados'
+
         if self.import_rect.collidepoint(position):  # Importar
             self.actions = [0] * 9
             # Preguntar si existen elementos a importar, o sea, si existen modulos
             if self.module_lista:
                 self.actions[5] = 1
             else:
-                print('no hay modulos')
+                self.show_msg = True
+                self.mensaje.text = 'No existen módulos'
         if self.rename_rect.collidepoint(position):
             self.actions = [0]*9
             self.actions[6] = 1
@@ -262,7 +282,19 @@ class Property(pygame.sprite.Sprite):
             else:
                 screen.blit(self.line_off, new_position)
         elif self.actions[1]:
-            print('desconectar')
+            pygame.mouse.set_visible(False)
+            new_position = (position[0] - 15, position[1] - 15)
+            self.delete_line_rect.x = position[0] - 15
+            self.delete_line_rect.y = position[1] - 15
+            screen.blit(self.delete_line, new_position)
+            for container in self.elementos['containers']:
+                if container.selected:
+                    for conexion in container.conections:
+                        for tramo in conexion.puntos_internos:
+                            if self.delete_line_rect.collidepoint(tramo):
+                                self.line_element = conexion
+                                self.line_delete = True
+
         elif self.actions[2]:  # Desplazar elementos
             pygame.mouse.set_visible(False)
             new_position = (position[0]-15, position[1]-15)
@@ -271,7 +303,18 @@ class Property(pygame.sprite.Sprite):
                 if container.selected:
                     for caja in container.cajas:
                         if caja.rect.collidepoint(abs_position):
-                            self.element_moved = caja.tag
+                            disconect = True  # Indica si el elemento tiene conexiones
+                            for nodo in caja.nodos:
+                                for key in container.keys:  # Remover elemento de lista de conexiones nodales
+                                    if nodo in container.nodos_sistema[key]:
+                                        disconect = False
+                                        break
+                            if disconect:
+                                self.element_moved = caja.tag
+                            else:
+                                pygame.mouse.set_visible(True)
+                                self.show_msg = True
+                                self.mensaje.text = 'El elemento debe estar desconectado'
                     for paralelo in container.knn:
                         if paralelo.rect.collidepoint(abs_position):
                             self.element_moved = paralelo.tag
@@ -406,7 +449,8 @@ class Property(pygame.sprite.Sprite):
                                             for nodo in knn_ind.nodos:
                                                 container.nodos.add(nodo)
                                         else:
-                                            print('colisiona con algo')
+                                            self.show_msg = True
+                                            self.mensaje.text = 'Colisión'
 
                             if self.reduceline_rect.collidepoint(push_position):  # Eliminar paralelo
                                 if knn_ind.num_rows > 2:
@@ -519,11 +563,17 @@ class Property(pygame.sprite.Sprite):
                         self.move_inside_work(screen, position, paralelo.rect, valid_workspace)
                         for nodo in paralelo.nodos:
                             container.nodos.remove(nodo)
-                        paralelo.rect.x = position[0]
-                        paralelo.rect.y = position[1]-40
-                        paralelo.pos = position
+                        paralelo.rect.x = position[0]-20
+                        paralelo.rect.y = position[1]-20
+                        paralelo.pos = [position[0]-20, position[1]-20]
+                        for index, set_caja in enumerate(paralelo.cols):
+                            for caja in set_caja:
+                                caja.rect.x = position[0]
+                                caja.rect.y = position[1]+index*paralelo.dt
+                                caja.pos = [position[0], position[1]+index*paralelo.dt]
+
                         paralelo.calc_nodes()
-                        paralelo.calc_lines()
+                        #paralelo.calc_lines()
 
     def move_inside_work(self, screen, position, elemento, space):
         """Funcion para definir la manera en q se ubica el elemento dependiendo de donde se encuentre"""
@@ -534,7 +584,6 @@ class Property(pygame.sprite.Sprite):
         else:
             self.move_inside = False
             print('out')
-
 
     def repos_element(self):  # Reposicionar elemento
         for container in self.elementos['containers']:
@@ -618,6 +667,40 @@ class Property(pygame.sprite.Sprite):
                         for nodo in container.nodos:
                             nodo.connected = False
 
+    def delete_line_elements(self, elemento):
+        for container in self.elementos['containers']:
+            if container.selected:
+                for caja in container.cajas:
+                    print(elemento.tag)
+                    if caja.tag == elemento.tag:
+                        container.cont_cajas -= 1
+                        container.list_box.del_data(caja)
+                        for nodo in caja.nodos:
+                            for key in container.keys:  # Remover elemento de lista de conexiones nodales
+                                if nodo in container.nodos_sistema[key]:
+                                    container.nodos_sistema[key].remove(nodo)
+                            container.nodos.remove(nodo)  # Remover nodo de lista de nodos del contenedor
+                        container.cajas.remove(caja)
+                        container.own_items.remove(caja.tag)
+                        container.items.remove(caja)
+                        container.real_items.remove(caja)
+
+                for conexion in container.conections:
+                    if conexion.elem1 in container.nodos and conexion.elem2 in container.nodos:
+                        pass
+                    else:
+                        container.conections.remove(conexion)
+                        for nodo in container.nodos:
+                            nodo.connected = False
+
+    def build_rect_points(self, puntos, num_points=20):  # Funcion recta. Construye los puntos de la recta para cada linea de una conexion
+        x1, y1 = puntos[0]
+        x2, y2 = puntos[1]
+        x_spacing = (x2-x1)/(num_points+1)
+        y_spacing = (y2 - y1) / (num_points + 1)
+        return [[x1+i*x_spacing, y1+i*y_spacing] for i in range(1, num_points+1)]
+
+
     def close_elements(self, position, force=False):
         if self.close_name_rect.collidepoint(position) or force:
             self.actions = [0]*9
@@ -625,6 +708,8 @@ class Property(pygame.sprite.Sprite):
             self.elem_type = False
             self.elem_proper = False
             self.name.buffer = [""]
+            self.line_element = None
+            self.line_delete = False
 
     # --------------Relacionado al texto--------------------------
     def text_boxes(self):
@@ -895,8 +980,8 @@ class Property(pygame.sprite.Sprite):
         """Dibujar estructuras del sistema en pantalla"""
         screen.blit(self.button_act_panel, self.pos_button_action)
         screen.blit(self.button_ele_panel, self.pos_button_elements)
+        #screen.blit(self.button_info, self.pos_info_buttons)
         screen.blit(self.workspace, self.pos_workspace)
-        self.draw_actions(screen, position)
         self.draw_elements(screen)
         for elemento in self.elementos['opciones']:
             if elemento.name == 'module':
@@ -930,7 +1015,8 @@ class Property(pygame.sprite.Sprite):
                                                             self.elem_proper = False
                                                             self.text_status = [0]*5
                                                         else:
-                                                            print('nada')
+                                                            self.show_msg = True
+                                                            self.mensaje.text = 'Todos los campos deben estar llenos'
 
                                                 for knn_ind in container.knn:
                                                     if knn_ind.tag == self.elem_selected:
@@ -960,13 +1046,17 @@ class Property(pygame.sprite.Sprite):
                                                             kdn.betha = "".join(self.box_field2.buffer)
                                                             self.elem_proper = False
                                             else:
-                                                print('No es numero')
+                                                self.show_msg = True
+                                                self.mensaje.text = 'Los valores deben ser númericos'
                                         except:
-                                            print('dato invalido')
+                                            self.show_msg = True
+                                            self.mensaje.text = 'Ingrese un dato valido'
                                     else:
-                                        print('nombre reservado por el sistema. Elija otro')
+                                        self.show_msg = True
+                                        self.mensaje.text = 'Nombre reservado por el sistema'
                                 else:
-                                    print('el nombre ya existe')
+                                    self.show_msg = True
+                                    self.mensaje.text = 'Nombre ya existente'
 
                     if self.ok_rect.collidepoint(push_position):  # Si se presiona sobre ok
                         for container in self.elementos['containers']:
@@ -1032,6 +1122,8 @@ class Property(pygame.sprite.Sprite):
                             self.config_bit = True
                             self.config_panel(container, screen, position, push_position)
 
+        self.draw_actions(screen, position)
+
     def config_panel(self, container, screen, over_mouse, pushed):
         if self.time:
             self.time_field.buffer = [char for char in str(container.time)]
@@ -1045,11 +1137,9 @@ class Property(pygame.sprite.Sprite):
         if self.ok_rect3.collidepoint(over_mouse):  # Mouse over button
             screen.blit(self.ok_s, self.ok_rect3)
         if self.ok_rect3.collidepoint(pushed):  # Boton presionado
-            #print("".join(self.time_field.buffer))
             container.time = "".join(self.time_field.buffer)
             container.time = int(container.time)
             self.new_time = True
-
 
     def cancel(self):
         """Cancelar acciones en ejecución"""
@@ -1068,6 +1158,7 @@ class Property(pygame.sprite.Sprite):
         self.init_pos = [0, 0]  # Posicion inicial de la linea
         self.end_line = [0, 0]  # Posicion final de la linea
         self.duple_conection = list()
+        self.points_conection = list()
         self.element_moved = None  # Indica el elemento a desplazarse
         self.moving = False  # indica si se encuentra desplazando algun elemento
         self.draw_module = False
@@ -1086,6 +1177,9 @@ class Property(pygame.sprite.Sprite):
         self.pos_button_elements = (580, 10)  # Inicio de posiciones acciones
         self.button_ele_panel = pygame.Surface((260, 120))  # Superficie para las acciones
         self.button_ele_panel.fill(WHITE)
+        self.pos_info_buttons = (870, 10)  # Inicio de posiciones acciones
+        self.button_info = pygame.Surface((80, 120))  # Superficie para las acciones
+        self.button_info.fill(WHITE)
         self.pos_rename = (400, 180)  # inicio espacio de trabajo
         self.rename_panel = pygame.Surface((200, 90))  # Superficie para las acciones
         self.rename_panel.fill(GRAY)
@@ -1209,7 +1303,7 @@ class Property(pygame.sprite.Sprite):
                     screen.blit(self.ok_n, self.ok_rect2)
 
     def type_surface(self, screen, position, pushed):
-        """Superifice para tipo del elemento seleccionado"""
+        """Superficie para tipo del elemento seleccionado"""
         if self.type_element == 1:  # Propiedades para caja sola
             screen.blit(self.proper_panel, self.pos_proper)
             screen.blit(self.close, self.close_name_rect)
@@ -1443,6 +1537,11 @@ class Property(pygame.sprite.Sprite):
         self.load_s = pygame.image.load(os.path.join('icons', 'load_s.png'))
         self.ok_n = pygame.image.load(os.path.join('icons', 'ok_n.png'))
         self.ok_s = pygame.image.load(os.path.join('icons', 'ok_s.png'))
+        self.delete_line = pygame.image.load(os.path.join('icons', 'delete_lines.png'))
+        self.info_n = pygame.image.load(os.path.join('icons', 'info_n.png'))
+        self.info_s = pygame.image.load(os.path.join('icons', 'info_s.png'))
+        self.help_n = pygame.image.load(os.path.join('icons', 'help_n.png'))
+        self.help_s = pygame.image.load(os.path.join('icons', 'help_s.png'))
         # Elementos
         self.caja_mini = pygame.image.load(os.path.join('pics', 'caja_mini.png'))
         self.stand_mini = pygame.image.load(os.path.join('pics', 'stand_by_mini.png'))
@@ -1477,6 +1576,7 @@ class Property(pygame.sprite.Sprite):
         self.move_rect = self.move_n.get_rect()
         self.move_rect.x = pos_actions[0] + 105
         self.move_rect.y = pos_actions[1] + 1
+        self.delete_line_rect = self.delete_line.get_rect()
         # 2da fila
         self.delete_rect = self.delete_n.get_rect()
         self.delete_rect.x = pos_actions[0]+2
@@ -1541,6 +1641,13 @@ class Property(pygame.sprite.Sprite):
         self.rect_check_orien = self.check.get_rect()
         self.rect_check_orien.x = self.pos_proper[0]+100
         self.rect_check_orien.y = self.pos_proper[0] + 160
+        # Info y ayuda
+        self.info_rect = self.info_n.get_rect()
+        self.info_rect.x = pos_actions[0] + 54
+        self.info_rect.y = pos_actions[1] + 83
+        self.help_rect = self.help_n.get_rect()
+        self.help_rect.x = pos_actions[0] + 107
+        self.help_rect.y = pos_actions[1] + 83
 
     def draw_actions(self, screen, position):
         if self.connect_rect.collidepoint(position):
@@ -1573,38 +1680,54 @@ class Property(pygame.sprite.Sprite):
 
         if self.export_rect.collidepoint(position):
             screen.blit(self.export_s, self.export_rect)
-            screen.blit(self.font.render('Borrar elemento', True, (0, 0, 0)),
+            screen.blit(self.font.render('Exportar módulo', True, (0, 0, 0)),
                         (position[0] + 8, position[1] + 8))
         else:
             screen.blit(self.export_n, self.export_rect)
 
         if self.import_rect.collidepoint(position):
             screen.blit(self.import_s, self.import_rect)
-            screen.blit(self.font.render('Borrar elemento', True, (0, 0, 0)),
+            screen.blit(self.font.render('Importar módulo', True, (0, 0, 0)),
                         (position[0] + 8, position[1] + 8))
         else:
             screen.blit(self.import_n, self.import_rect)
 
         if self.rename_rect.collidepoint(position):
             screen.blit(self.rename_s, self.rename_rect)
-            screen.blit(self.font.render('Borrar elemento', True, (0, 0, 0)),
+            screen.blit(self.font.render('Renombrar pestaña', True, (0, 0, 0)),
                         (position[0] + 8, position[1] + 8))
         else:
             screen.blit(self.rename_n, self.rename_rect)
 
-        if self.save_rect.collidepoint(position):
-            screen.blit(self.save_s, self.save_rect)
-            screen.blit(self.font.render('Borrar elemento', True, (0, 0, 0)),
+        if self.info_rect.collidepoint(position):
+            screen.blit(self.info_s, self.info_rect)
+            screen.blit(self.font.render('Información', True, (0, 0, 0)),
                         (position[0] + 8, position[1] + 8))
         else:
-            screen.blit(self.save_n, self.save_rect)
+            screen.blit(self.info_n, self.info_rect)
 
-        if self.load_rect.collidepoint(position):
-            screen.blit(self.load_s, self.load_rect)
-            screen.blit(self.font.render('Borrar elemento', True, (0, 0, 0)),
+        if self.help_rect.collidepoint(position):
+            screen.blit(self.help_s, self.help_rect)
+            screen.blit(self.font.render('Ayuda', True, (0, 0, 0)),
                         (position[0] + 8, position[1] + 8))
         else:
-            screen.blit(self.load_n, self.load_rect)
+            screen.blit(self.help_n, self.help_rect)
+
+        if self.caja_mini_rect.collidepoint(position):
+            screen.blit(self.font.render('Elemento individual', True, (0, 0, 0)),
+                        (position[0] + 8, position[1] + 8))
+
+        if self.knn_mini_rect.collidepoint(position):
+            screen.blit(self.font.render('Paralelo', True, (0, 0, 0)),
+                        (position[0] + 8, position[1] + 8))
+
+        if self.stand_mini_rect.collidepoint(position):
+            screen.blit(self.font.render('Stand By', True, (0, 0, 0)),
+                        (position[0] + 8, position[1] + 8))
+
+        if self.kdn_mini_rect.collidepoint(position):
+            screen.blit(self.font.render('KdN', True, (0, 0, 0)),
+                        (position[0] + 8, position[1] + 8))
 
     def rect_elements(self, position):
         self.caja_mini_rect = self.caja_mini.get_rect()

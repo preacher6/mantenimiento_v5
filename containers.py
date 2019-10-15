@@ -390,50 +390,60 @@ class Container(pygame.sprite.Sprite):
             g = Graph(num_nodos)
             source = list()
             for row in matriz_inc:
-                if np.sum(row[:-3]) == 2:
-                    items = row[:-3].nonzero()[0].tolist()
+                if np.sum(row[:-4]) == 2:
+                    items = row[:-4].nonzero()[0].tolist()
                     g.addEdge(items[0], items[1])
                     g.addEdge(items[1], items[0])
                 else:
-                    items = row[:-3].nonzero()[0].tolist()
+                    items = row[:-4].nonzero()[0].tolist()
                     source.append(items[0])
             g.printAllPaths(source[0], source[1])
             conf_total = ''
+            conf_total_sym = []
             for path in g.path:
                 fin = len(path)-1
                 count = 0
                 conf_linea = ''
+                conf_linea_sym = []
                 while count+1 <= fin:
                     path_row = [path[count], path[count + 1]]
                     path_row.sort()
                     for row in matriz_inc:
-                        if np.sum(row[:-3]) == 2:
-                            if path_row == row[:-3].nonzero()[0].tolist():
+                        if np.sum(row[:-4]) == 2:
+                            if path_row == row[:-4].nonzero()[0].tolist():
                                 count += 1
                                 if not conf_linea:
-                                    conf_linea = row[-3]
+                                    conf_linea = row[-4]
+                                    conf_linea_sym = row[-3]
                                 else:
-                                    conf_linea += '*'+ row[-3]
+                                    conf_linea += '*'+ row[-4]
+                                    conf_linea_sym *= row[-3]
                 if not conf_total:
                     conf_total = '(1-(' + conf_linea + '))'
+                    conf_total_sym = (1-conf_linea_sym)
                 else:
                     conf_total += '*(1-(' + conf_linea + '))'
+                    conf_total_sym *= (1 - conf_linea_sym)
             conf_total = '(1-' + conf_total + ')'
+            conf_total_sym = (1 - conf_total_sym)
             self.plot_all = conf_total
             t = self.time_eval
             print('La confiabilidad del sistema es: ', eval(conf_total)*100)
             print(conf_total)
             print('eq1', equation)
-            #print('La inconfiabilidad del sistema es: ', (1 - eval(matriz_inc[2, -2])) * 100)
+            func_sym = conf_total_sym
+            self.func_sym = func_sym
+            dicto_final = dict(zip(variables_sym, values_sym))
+            self.func_sym = self.func_sym.subs(dicto_final)
+            derivates = 0
+            self.dicto_sol = {}
+            for elem in variables_sym:
+                derivates = sy.diff(func_sym, elem)
+                self.dicto_sol[elem] = derivates.subs(dicto_variables)
         else:
             self.correct = True
             self.plot_all = matriz_inc[2, -4]
-            #print('eq: ', self.plot_all)
-            #print('El sistema es reducible')
             t = self.time_eval
-            #print('La confiabilidad del sistema es: ', eval(matriz_inc[2, -3])*100)
-            #print(matriz_inc[2, -3])
-            #print('eq2', matriz_inc[2, -4])
             func_sym = matriz_inc[2, -3]
             self.func_sym = func_sym
             dicto_final = dict(zip(variables_sym, values_sym))
@@ -446,7 +456,6 @@ class Container(pygame.sprite.Sprite):
             """self.soluciones = []
             for deriv in derivates:
                 self.soluciones.append(deriv.subs(dicto_variables))"""
-            #print('La inconfiabilidad del sistema es: ', (1-eval(matriz_inc[2, -2]))*100)
 
     def check_node(self, elem1, elem2):
         """Verificar a que nodo del sistema se conectan los nodos fisicos de los objetos"""

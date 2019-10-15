@@ -167,9 +167,6 @@ class Caja(pygame.sprite.Sprite):
             screen.blit(self.font.render(self.betha, True, WHITE), (self.pos[0] + 25, self.pos[1] + 47))
         #self.calc_nodes()
 
-    def type(self):
-        pass
-
 
 class Knn(pygame.sprite.Sprite):
     """Clase para elementos en paralelo"""
@@ -527,12 +524,14 @@ class Nodo(pygame.sprite.Sprite):
 
 
 class Conexion(pygame.sprite.Sprite):
-    def __init__(self, puntos, elem1, elem2):
+    def __init__(self, puntos, elem1, elem2, puntos_internos):
         pygame.sprite.Sprite.__init__(self)
         self.puntos = puntos
-        print(self.puntos)
+        print('puntos', self.puntos)
         self.elem1 = elem1
         self.elem2 = elem2  # Este elemento es una etiqueta si pertenece a las conexiones de propiedades, y es un numero si pertence a un elemento
+        print('elementos', elem1, elem2)
+        self.puntos_internos = puntos_internos
 
     def draw(self, screen):
         for linea in self.puntos:

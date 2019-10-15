@@ -84,11 +84,31 @@ class PGManten:
                             self.property_class.add_container()
                         self.property_class.delete_container(position_mouse)  # Verificar si alguna pestaña se cierra
                         self.property_class.select_container(position_mouse)  # Seleccionar pestaña
-                        self.property_class.check_actions(position_mouse)  # verifica acciones
+                        if not self.property_class.show_msg:
+                            self.property_class.check_actions(position_mouse)  # verifica acciones
                         self.property_class.close_elements(position_mouse)  # Cerrar elementos
                         self.property_class.add_red_elements(position_mouse)
+                        for container in self.property_class.elementos['containers']:
+                            container.list_box.scroll.action_bar(position_mouse)
+                        if self.property_class.show_msg:  # Si La ventana de mensajes esta disponible
+                            if self.property_class.mensaje.accept.recta_push.collidepoint(position_mouse):
+                                self.property_class.show_msg = False
+                        if self.property_class.line_delete:
+                            for container in self.property_class.elementos['containers']:
+                                if container.selected:
+                                    for conexion in container.conections:
+                                        if conexion.elem1 == self.property_class.line_element.elem1 and conexion.elem2\
+                                                == self.property_class.line_element.elem2:
+                                            container.conections.remove(conexion)
+                                            for nodo in container.nodos:
+                                                nodo.connected = False
+                                            self.property_class.line_element = None
+                                            self.property_class.line_delete = False
+                                            break
+
                         if self.property_class.connecting:  # Si se encuentra la linea de dibujo activa se pueden adicionar elementos a la conexion
-                            self.property_class.duple_conection.append([self.property_class.init_pos, self.property_class.end_line])
+                            self.property_class.duple_conection.append([self.property_class.init_pos, self.property_class.end_line])  # Todos los puntos de una conexion
+                            self.property_class.points_conection.extend(self.property_class.build_rect_points(self.property_class.duple_conection[-1]))
                             if self.property_class.end_line != self.property_class.duple_conection[0][0]:
                                 self.property_class.init_pos = self.property_class.end_line
                                 for container in self.property_class.elementos['containers']:
@@ -101,9 +121,11 @@ class PGManten:
                                                 self.property_class.elem2 = nodo  # Elemento final de la conexion
                                                 conexion = Conexion(self.property_class.duple_conection,
                                                                                             self.property_class.elem1,
-                                                                                            self.property_class.elem2)
+                                                                                            self.property_class.elem2,
+                                                                    self.property_class.points_conection)
                                                 container.conections.add(conexion)
                                                 self.property_class.duple_conection = []
+                                                self.property_class.points_conection = []
                                                 # Verificar a que nodo del sistema van los nodos fisicos del objeto
                                                 container.check_node(self.property_class.elem1, self.property_class.elem2)
 
@@ -160,6 +182,12 @@ class PGManten:
             if self.property_class.element_moved != None:  # Mover elementos
                 self.property_class.move_element(self.screen_form, abs_position)
                 self.property_class.moving = True
+            if self.property_class.show_msg:
+                self.property_class.mensaje.draw(self.screen_form)
+                if self.property_class.mensaje.accept.recta_push.collidepoint(abs_position):
+                    self.property_class.mensaje.accept.over = True
+                else:
+                    self.property_class.mensaje.accept.over = False
             self.clock.tick(60)
             dt = self.clock.tick(30) / 1000  # Delta del timer
             pygame.display.flip()
